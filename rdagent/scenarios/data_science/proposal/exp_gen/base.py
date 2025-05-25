@@ -232,8 +232,12 @@ class DSTrace(Trace[DataScienceScen, KnowledgeBase]):
             if exp.hypothesis.component == final_component and fb:
                 has_final_component = True
         if max_retrieve_num is not None and (SOTA_exp_and_feedback_list or failed_exp_and_feedback_list):
-            SOTA_exp_and_feedback_list = SOTA_exp_and_feedback_list[:min(max_retrieve_num, len(SOTA_exp_and_feedback_list))]
-            failed_exp_and_feedback_list = failed_exp_and_feedback_list[:min(max_retrieve_num, len(failed_exp_and_feedback_list))]
+            SOTA_exp_and_feedback_list = SOTA_exp_and_feedback_list[
+                -min(max_retrieve_num, len(SOTA_exp_and_feedback_list)) :
+            ]
+            failed_exp_and_feedback_list = failed_exp_and_feedback_list[
+                -min(max_retrieve_num, len(failed_exp_and_feedback_list)) :
+            ]
         if return_type == "all":
             return SOTA_exp_and_feedback_list + failed_exp_and_feedback_list
         elif return_type == "failed":

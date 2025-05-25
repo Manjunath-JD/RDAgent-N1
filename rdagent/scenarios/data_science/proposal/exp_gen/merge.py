@@ -391,27 +391,20 @@ class ExpGen2TraceAndMergeV3(ExpGen):
                 return self.exp_gen.gen(trace, selection=(-1,))
             else:
 
-                if not self.flag_start_merge:  # root node of the merge trace
-                    self.flag_start_merge = True
-                    selection = (leaves[0],)
-                    sota_exp_fb = trace.sota_experiment_fb(selection=selection)
-                    if sota_exp_fb is None:
-                        sota_exp_fb = trace.hist[leaves[0]]
-                    try:
-                        if (
-                            trace.sota_exp_to_submit is not None
-                            and sota_exp_fb[0].result is not None
-                            and trace.sota_exp_to_submit.result.loc["ensemble"].iloc[0]
-                            != sota_exp_fb[0].result.loc["ensemble"].iloc[0]
-                        ):
-                            selection = (leaves[1],)
-                            logger.info(f"Change selection to {leaves[1]}")
-                    except Exception as e:
-                        logger.error(f"Get best selection failed: {e}")
+                selection = (leaves[0],)
+                sota_exp_fb = trace.sota_experiment_fb(selection=selection)
+                if sota_exp_fb is None:
+                    sota_exp_fb = trace.hist[leaves[0]]
+                try:
+                    if (
+                        trace.sota_exp_to_submit is not None
+                        and sota_exp_fb[0].result is not None
+                        and trace.sota_exp_to_submit.result.loc["ensemble"].iloc[0]
+                        != sota_exp_fb[0].result.loc["ensemble"].iloc[0]
+                    ):
+                        selection = (leaves[1],)
+                        logger.info(f"Change selection to {leaves[1]}")
+                except Exception as e:
+                    logger.error(f"Get best selection failed: {e}")
 
-                    return self.merge_exp_gen.gen(trace, selection)
-                else:
-                    # return self.merge_exp_gen.gen(trace, selection)
-                    return self.exp_gen.gen(
-                        trace, selection=(-1,)
-                    )  # continue the last trace, to polish the merged solution
+                return self.merge_exp_gen.gen(trace, selection)
