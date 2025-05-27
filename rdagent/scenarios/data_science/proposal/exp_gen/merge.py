@@ -390,20 +390,32 @@ class ExpGen2TraceAndMergeV3(ExpGen):
             if len(leaves) < 2:
                 return self.exp_gen.gen(trace, selection=(-1,))
             else:
-
                 selection = (leaves[0],)
                 sota_exp_fb = trace.sota_experiment_fb(selection=selection)
                 if sota_exp_fb is None:
                     sota_exp_fb = trace.hist[leaves[0]]
+                exp_to_merge_fb = trace.sota_experiment_fb(selection=(leaves[1],))
+                if exp_to_merge_fb is None:
+                    exp_to_merge_fb = trace.hist[leaves[1]]
                 try:
                     if (
                         trace.sota_exp_to_submit is not None
                         and sota_exp_fb[0].result is not None
-                        and trace.sota_exp_to_submit.result.loc["ensemble"].iloc[0]
-                        != sota_exp_fb[0].result.loc["ensemble"].iloc[0]
+                        and exp_to_merge_fb[0].result is not None
                     ):
+                        current_exp_value = exp_to_merge_fb[0].result.loc["ensemble"].iloc[0]
+                        sota_submit_value = trace.sota_exp_to_submit.result.loc["ensemble"].iloc[0]
+                        sota_feedback_value = sota_exp_fb[0].result.loc["ensemble"].iloc[0]
+
+                        # SOTA experiment value may not be the last value in the trace
+                        logger.info(
+                            f"{leaves[0]} score: {current_exp_value}, {leaves[1]} score: {current_exp_value}, Sota score: {sota_submit_value}"
+                        )
+                        if abs(current_exp_value - sota_submit_value) < abs(current_exp_value - sota_feedback_value):
+                            selection = (leaves[1],)
+                    if sota_exp_fb[0].result is None and exp_to_merge_fb[0].result is not None:
+                        logger.info(f"{leaves[0]} result is None, change selection to {leaves[1]}, result is {exp_to_merge_fb[0].result}")
                         selection = (leaves[1],)
-                        logger.info(f"Change selection to {leaves[1]}")
                 except Exception as e:
                     logger.error(f"Get best selection failed: {e}")
 
