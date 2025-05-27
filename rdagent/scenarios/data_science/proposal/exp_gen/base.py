@@ -78,6 +78,12 @@ class DSTrace(Trace[DataScienceScen, KnowledgeBase]):
     def set_current_selection(self, selection: tuple[int, ...]) -> None:
         self.current_selection = selection
 
+    def get_current_sub_trace(self) -> list[tuple[DSExperiment, ExperimentFeedback]]:
+        return self.collect_all_ancestors(selection=self.current_selection)
+
+    def get_sub_trace_count(self) -> int:
+        return len(self.get_leaves())
+
     def get_leaves(self) -> list[int, ...]:
         """
         Get the indices of nodes (in hist) that have no children—i.e., "leaves" of current DAG.
@@ -161,6 +167,9 @@ class DSTrace(Trace[DataScienceScen, KnowledgeBase]):
         """
 
         if len(self.dag_parent) == 0:
+            return []
+
+        elif len(selection) == 0:
             return []
 
         else:
