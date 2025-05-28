@@ -11,6 +11,7 @@ from multiprocessing.connection import Connection
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Generator, Union
 
+import requests
 from loguru import logger
 
 if TYPE_CHECKING:
@@ -22,7 +23,7 @@ from rdagent.core.conf import RD_AGENT_SETTINGS
 from rdagent.core.utils import SingletonBaseClass
 
 from .storage import FileStorage
-from .utils import LogColors, get_caller_info
+from .utils import LogColors, get_caller_info, log_obj_to_json
 
 
 class RDAgentLog(SingletonBaseClass):
@@ -116,52 +117,46 @@ class RDAgentLog(SingletonBaseClass):
         tag = f"{self._tag}.{tag}.{self.get_pids()}".strip(".")
         logp = self.storage.log(obj, name=tag, save_type="pkl")
 
+        if RD_AGENT_SETTINGS.ui_server_port:
+            try:
+                ui_server_url = f"http://localhost:{RD_AGENT_SETTINGS.ui_server_port}"
+                data = log_obj_to_json(obj=obj, tag=tag, log_trace_path=self.log_trace_path)
+                headers = {"Content-Type": "application/json"}
+                requests.post(f"{ui_server_url}/receive", json=data, headers=headers, timeout=1)
+            except (requests.ConnectionError, requests.Timeout) as e:
+                self._log("warning", f"Send log object to UI server failed. Error: {e}", tag=tag)
+
         file_handler_id = logger.add(
             self.log_trace_path / tag.replace(".", "/") / "common_logs.log", format=self.file_format
         )
         logger.patch(lambda r: r.update(caller_info)).info(f"Logging object in {Path(logp).absolute()}")
         logger.remove(file_handler_id)
 
-    def info(self, msg: str, *, tag: str = "", raw: bool = False) -> None:
-        # TODO: too much duplicated. due to we have no logger with stream context;
+    def _log(self, level: str, msg: str, *, tag: str = "", raw: bool = False) -> None:
         caller_info = get_caller_info()
+        tag = f"{self._tag}.{tag}.{self.get_pids()}".strip(".")
+        log_file_path = self.log_trace_path / tag.replace(".", "/") / "common_logs.log"
+
         if raw:
             logger.remove()
             logger.add(sys.stderr, format=lambda r: "{message}")
-
-        tag = f"{self._tag}.{tag}.{self.get_pids()}".strip(".")
-        log_file_path = self.log_trace_path / tag.replace(".", "/") / "common_logs.log"
-        if raw:
             file_handler_id = logger.add(log_file_path, format=partial(self.file_format, raw=True))
         else:
             file_handler_id = logger.add(log_file_path, format=self.file_format)
 
-        logger.patch(lambda r: r.update(caller_info)).info(msg)
+        log_func = getattr(logger.patch(lambda r: r.update(caller_info)), level)
+        log_func(msg)
         logger.remove(file_handler_id)
 
         if raw:
             logger.remove()
             logger.add(sys.stderr)
 
-    def warning(self, msg: str, *, tag: str = "") -> None:
-        # TODO: reuse code
-        # _log(self, msg: str, *, tag: str = "", level=Literal["warning", "error", ..]) -> None:
-        # getattr(logger.patch(lambda r: r.update(caller_info)), level)(msg)
-        caller_info = get_caller_info()
+    def info(self, msg: str, *, tag: str = "", raw: bool = False) -> None:
+        self._log("info", msg, tag=tag, raw=raw)
 
-        tag = f"{self._tag}.{tag}.{self.get_pids()}".strip(".")
-        file_handler_id = logger.add(
-            self.log_trace_path / tag.replace(".", "/") / "common_logs.log", format=self.file_format
-        )
-        logger.patch(lambda r: r.update(caller_info)).warning(msg)
-        logger.remove(file_handler_id)
+    def warning(self, msg: str, *, tag: str = "", raw: bool = False) -> None:
+        self._log("warning", msg, tag=tag, raw=raw)
 
-    def error(self, msg: str, *, tag: str = "") -> None:
-        caller_info = get_caller_info()
-
-        tag = f"{self._tag}.{tag}.{self.get_pids()}".strip(".")
-        file_handler_id = logger.add(
-            self.log_trace_path / tag.replace(".", "/") / "common_logs.log", format=self.file_format
-        )
-        logger.patch(lambda r: r.update(caller_info)).error(msg)
-        logger.remove(file_handler_id)
+    def error(self, msg: str, *, tag: str = "", raw: bool = False) -> None:
+        self._log("error", msg, tag=tag, raw=raw)
