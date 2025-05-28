@@ -20,7 +20,7 @@ from rdagent.utils.workflow import wait_retry
 
 
 class MergeExpGen(ExpGen):
-    def gen(self, trace: DSTrace, selection: tuple[int, ...] = (-1,)) -> DSExperiment:
+    def gen(self, trace: DSTrace) -> DSExperiment:
         # Ignore the selection argument and use all leaves instead.
         leaves: list[int] = trace.get_leaves()
         trace.set_current_selection((leaves[0],))  # override the current selection.
@@ -33,24 +33,9 @@ class MergeExpGen(ExpGen):
         if exp_to_merge_fb is None:
             exp_to_merge_fb = trace.hist[leaves[1]]
 
-        try:
-            sota_exp_selector = import_class(DS_RD_SETTING.sota_exp_selector_name)()
-            sota_exp_to_submit = sota_exp_selector.get_sota_exp_to_submit(trace)
-            if (
-                sota_exp_to_submit is not None
-                and sota_exp_fb[0].result is not None
-                and sota_exp_to_submit.result.loc["ensemble"].iloc[0] != sota_exp_fb[0].result.loc["ensemble"].iloc[0]
-            ):
-                sota_exp_fb, exp_to_merge_fb = exp_to_merge_fb, sota_exp_fb
-                leaves[0], leaves[1] = leaves[1], leaves[0]
-                trace.set_current_selection((leaves[0],))
-        except Exception as ex:
-            print(f"Selector {DS_RD_SETTING.sota_exp_selector_name} getting result with error: {ex}")
-
         # scenario_desc = trace.scen.get_scenario_all_desc()
         # scenario_desc is not needed in task description. So we have to do it.
-        if sota_exp_fb[1].decision:
-            trace.set_sota_exp_to_submit(sota_exp_fb[0])
+
         sota_exp_desc = T("scenarios.data_science.share:describe.exp").r(
             exp=sota_exp_fb[0],
             heading="Best previous exploration of the scenario",
@@ -68,7 +53,7 @@ class MergeExpGen(ExpGen):
             return_type="sota", search_type="ancestors", selection=(leaves[1],)
         )
         if len(success_fb_list) > 0:
-            exp_to_merge_fb_desc = T("scenarios.data_science.proposal.exp_gen.merge:trace").r(
+            exp_to_merge_fb_desc = T("scenarios.data_science.share:describe.trace").r(
                 exp_and_feedback_list=success_fb_list,
                 type="success",
                 heading="Successful iterations:",
@@ -146,10 +131,13 @@ class ExpGen2Hypothesis(DSProposalV2ExpGen):
         if exp_to_merge_fb is None:
             exp_to_merge_fb = trace.hist[exp_index]
 
-        sota_exp_desc = T("scenarios.data_science.share:describe.exp").r(
-            exp=sota_exp_fb[0],
-            heading="Best previous exploration of the scenario",
-        )
+        if sota_exp_fb:
+            sota_exp_desc = T("scenarios.data_science.share:describe.exp").r(
+                exp=sota_exp_fb[0],
+                heading="Best previous exploration of the scenario",
+            )
+        else:
+            sota_exp_desc = ""
 
         success_fb_list = trace.experiment_and_feedback_list_after_init(
             return_type="sota", search_type="ancestors", selection=(exp_index,)
